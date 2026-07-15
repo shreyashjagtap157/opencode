@@ -521,16 +521,20 @@ export function topK(model: Provider.Model) {
 // {adaptive, disabled} even though @ai-sdk/anthropic's Zod schema also
 // allows "enabled". Keeping this in one place lets every variant-emit and
 // options() hard-fill route through the same gate.
+const ANTHROPIC_THINKING_TYPES = new Set(["enabled", "adaptive", "disabled"] as const)
+const MINIMAX_THINKING_TYPES = new Set(["adaptive", "disabled"] as const)
+const KIMI_THINKING_TYPES = new Set(["enabled", "disabled"] as const)
+
 function allowedThinkingTypes(model: Provider.Model): Set<"enabled" | "adaptive" | "disabled"> | null {
   const id = model.api.id.toLowerCase()
   if (model.api.npm === "@ai-sdk/anthropic" || model.api.npm === "@ai-sdk/google-vertex/anthropic") {
-    return new Set(["enabled", "adaptive", "disabled"])
+    return ANTHROPIC_THINKING_TYPES
   }
   if (id.includes("minimax-m3")) {
-    return new Set(["adaptive", "disabled"])
+    return MINIMAX_THINKING_TYPES
   }
   if (id.includes("k2p") || id.includes("kimi-k2.") || id.includes("kimi-k2p")) {
-    return new Set(["enabled", "disabled"])
+    return KIMI_THINKING_TYPES
   }
   return null
 }
@@ -539,12 +543,38 @@ function allowedThinkingTypes(model: Provider.Model): Set<"enabled" | "adaptive"
 // value the upstream accepts, and an `enabled` budgetTokens must not exceed the
 // model's output limit. Everything else (clear_thinking, display, provider
 // extensions) is provider-specific body language that we forward untouched.
+//
+// Note: when thinking.type is not accepted by the model, normalizeThinkingType_
+// silently falls back to "adaptive" (or "enabled", or "disabled") without
+// emitting a warning or error — the caller may not realize thinking was
+// forcibly disabled. This is intentional; surfacing the mismatch at request
+// time could break agents that don't handle unknown thinking types gracefully.
+// Use the test suite (sanitizeOptionsForModel tests) to verify the normalization
+// rules, not runtime logs on the hot path.
 function normalizeThinking(model: Provider.Model, thinking: Record<string, any> | undefined): Record<string, any> | undefined {
   if (!thinking) return thinking
+  const allowed = allowedThinkingTypes(model)
+  const normalizedType = allowed ? normalizeThinkingType_(model, thinking.type) : thinking.type
+  const maxOutput = model.limit.output
+  const needsBudgetClamp =
+    normalizedType === "enabled" &&
+    typeof thinking.budgetTokens === "number" &&
+    thinking.budgetTokens > 0 &&
+    maxOutput > 0 &&
+    thinking.budgetTokens > maxOutput - 1
+  if (
+    normalizedType === thinking.type &&
+    maxOutput > 0 &&
+    !(normalizedType === "enabled" && (typeof thinking.budgetTokens !== "number" || thinking.budgetTokens <= 0)) &&
+    !needsBudgetClamp
+  )
+    return thinking
   const result: Record<string, any> = { ...thinking }
-  result.type = normalizeThinkingType_(model, thinking.type)
-  if (result.type === "enabled" && typeof thinking.budgetTokens === "number") {
-    result.budgetTokens = Math.min(thinking.budgetTokens, model.limit.output - 1)
+  result.type = normalizedType
+  if (needsBudgetClamp) {
+    result.budgetTokens = Math.min(thinking.budgetTokens!, maxOutput - 1)
+  } else if (normalizedType === "enabled" && (maxOutput <= 0 || typeof thinking.budgetTokens !== "number" || thinking.budgetTokens <= 0)) {
+    delete result.budgetTokens
   }
   return result
 }

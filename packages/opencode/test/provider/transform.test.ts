@@ -5128,3 +5128,211 @@ describe("ProviderTransform.providerOptions - ai-gateway-provider", () => {
     expect(result).toEqual({ openaiCompatible: { reasoningEffort: "high" } })
   })
 })
+
+describe("ProviderTransform.sanitizeOptionsForModel", () => {
+  const anthropicModel = {
+    id: "anthropic/claude-3-5-sonnet",
+    providerID: "anthropic",
+    api: {
+      id: "claude-3-5-sonnet-20241022",
+      url: "https://api.anthropic.com",
+      npm: "@ai-sdk/anthropic",
+    },
+    capabilities: {
+      temperature: true,
+      reasoning: false,
+      attachment: true,
+      toolcall: true,
+      input: { text: true, audio: false, image: true, video: false, pdf: true },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    cost: { input: 0.003, output: 0.015, cache: { read: 0.0003, write: 0.00375 } },
+    limit: { context: 200000, output: 8192 },
+    status: "active",
+    options: {},
+    headers: {},
+  } as any
+
+  const minimaxModel = {
+    id: "minimax/minimax-m3",
+    providerID: "minimax",
+    api: {
+      id: "minimax-m3",
+      url: "https://api.minimax.com/anthropic/v1",
+      npm: "@ai-sdk/anthropic",
+    },
+    capabilities: {
+      temperature: true,
+      reasoning: true,
+      attachment: true,
+      toolcall: true,
+      input: { text: true, audio: false, image: true, video: false, pdf: true },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    cost: { input: 0.001, output: 0.002, cache: { read: 0.0001, write: 0.0002 } },
+    limit: { context: 128000, output: 8192 },
+    status: "active",
+    options: {},
+    headers: {},
+  } as any
+
+  const zeroOutputModel = {
+    ...anthropicModel,
+    limit: { context: 200000, output: 0 },
+  } as any
+
+  test("preserves extra fields like clear_thinking", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, {
+      thinking: { type: "enabled", clear_thinking: false, budgetTokens: 5000 },
+    })
+    expect(result.thinking).toEqual({ type: "enabled", clear_thinking: false, budgetTokens: 5000 })
+  })
+
+  test("normalizes thinking.type from enabled to adaptive for minimax-m3 (only adaptive/disabled allowed)", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(minimaxModel, {
+      thinking: { type: "gibberish" as any },
+    })
+    expect(result.thinking.type).toBe("adaptive")
+  })
+
+  test("normalizes thinking.type from enabled to adaptive for anthropic when type is gibberish", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, {
+      thinking: { type: "gibberish" as any },
+    })
+    expect(result.thinking.type).toBe("adaptive")
+  })
+
+  test("clamps budgetTokens to model.limit.output - 1", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, {
+      thinking: { type: "enabled", budgetTokens: 50000 },
+    })
+    expect(result.thinking.budgetTokens).toBe(8191)
+  })
+
+  test("clamps budgetTokens to maxOutput - 1 even when within output limit", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, {
+      thinking: { type: "enabled", budgetTokens: 9000 },
+    })
+    expect(result.thinking.budgetTokens).toBe(8191)
+  })
+
+  test("removes budgetTokens when model.limit.output is 0", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(zeroOutputModel, {
+      thinking: { type: "enabled", budgetTokens: 16000 },
+    })
+    expect(result.thinking.budgetTokens).toBeUndefined()
+  })
+
+  test("removes budgetTokens when budgetTokens is 0", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, {
+      thinking: { type: "enabled", budgetTokens: 0 },
+    })
+    expect(result.thinking.budgetTokens).toBeUndefined()
+  })
+
+  test("removes budgetTokens when budgetTokens is negative", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, {
+      thinking: { type: "enabled", budgetTokens: -5000 },
+    })
+    expect(result.thinking.budgetTokens).toBeUndefined()
+  })
+
+  test("returns empty object for undefined options", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, undefined)
+    expect(result).toEqual({})
+  })
+
+  test("returns options unchanged when no thinking field", () => {
+    const input = { temperature: 0.7, model: "gpt-5" }
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, input)
+    expect(result).toEqual(input)
+  })
+
+  test("preserves unknown provider-specific thinking extensions", () => {
+    const result = ProviderTransform.sanitizeOptionsForModel(anthropicModel, {
+      thinking: { type: "enabled", budgetTokens: 16000, customProviderField: "value", count: 42 },
+    })
+    expect(result.thinking.customProviderField).toBe("value")
+    expect(result.thinking.count).toBe(42)
+  })
+})
+
+describe("ProviderTransform.sanitizeVariants", () => {
+  const anthropicModel = {
+    id: "anthropic/claude-3-5-sonnet",
+    providerID: "anthropic",
+    api: {
+      id: "claude-3-5-sonnet-20241022",
+      url: "https://api.anthropic.com",
+      npm: "@ai-sdk/anthropic",
+    },
+    capabilities: {
+      temperature: true,
+      reasoning: false,
+      attachment: true,
+      toolcall: true,
+      input: { text: true, audio: false, image: true, video: false, pdf: true },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    cost: { input: 0.003, output: 0.015, cache: { read: 0.0003, write: 0.00375 } },
+    limit: { context: 200000, output: 8192 },
+    status: "active",
+    options: {},
+    headers: {},
+  } as any
+
+  const minimaxModel = {
+    id: "minimax/minimax-m3",
+    providerID: "minimax",
+    api: {
+      id: "minimax-m3",
+      url: "https://api.minimax.com/anthropic/v1",
+      npm: "@ai-sdk/anthropic",
+    },
+    capabilities: {
+      temperature: true,
+      reasoning: true,
+      attachment: true,
+      toolcall: true,
+      input: { text: true, audio: false, image: true, video: false, pdf: true },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    cost: { input: 0.001, output: 0.002, cache: { read: 0.0001, write: 0.0002 } },
+    limit: { context: 128000, output: 8192 },
+    status: "active",
+    options: {},
+    headers: {},
+  } as any
+
+  test("normalizes thinking.type in each variant entry", () => {
+    const result = ProviderTransform.sanitizeVariants(minimaxModel, {
+      none: { thinking: { type: "gibberish" as any } },
+      thinking: { thinking: { type: "gibberish" as any, budgetTokens: 50000 } },
+    })
+    expect(result.none.thinking.type).toBe("adaptive")
+    expect(result.thinking.thinking.type).toBe("adaptive")
+    expect(result.thinking.thinking.budgetTokens).toBe(50000)
+  })
+
+  test("passes through variants with no thinking field unchanged", () => {
+    const input = { high: { temperature: 0.9 }, low: { temperature: 0.3 } }
+    const result = ProviderTransform.sanitizeVariants(anthropicModel, input)
+    expect(result).toEqual(input)
+  })
+
+  test("returns empty object for undefined variants", () => {
+    const result = ProviderTransform.sanitizeVariants(anthropicModel, undefined)
+    expect(result).toEqual({})
+  })
+
+  test("preserves extra fields in variant thinking objects", () => {
+    const result = ProviderTransform.sanitizeVariants(anthropicModel, {
+      test: { thinking: { type: "enabled", budgetTokens: 5000, clear_thinking: false } },
+    })
+    expect(result.test.thinking).toEqual({ type: "enabled", budgetTokens: 5000, clear_thinking: false })
+  })
+})
