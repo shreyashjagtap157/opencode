@@ -28,16 +28,17 @@ function base(enterpriseUrl?: string) {
 }
 
 // Check if a message is a synthetic user msg used to attach an image from a tool call
-function imgMsg(msg: any): boolean {
-  if (msg?.role !== "user") return false
+function imgMsg(msg: unknown): boolean {
+  const m = msg as { role?: string; content?: unknown }
+  if (m?.role !== "user") return false
 
   // Handle the 3 api formats
 
-  const content = msg.content
+  const content = m.content
   if (typeof content === "string") return content === MessageV2.SYNTHETIC_ATTACHMENT_PROMPT
   if (!Array.isArray(content)) return false
   return content.some(
-    (part: any) =>
+    (part) =>
       (part?.type === "text" || part?.type === "input_text") && part.text === MessageV2.SYNTHETIC_ATTACHMENT_PROMPT,
   )
 }
@@ -113,8 +114,8 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                   const last = body.messages[body.messages.length - 1]
                   return {
                     isVision: body.messages.some(
-                      (msg: any) =>
-                        Array.isArray(msg.content) && msg.content.some((part: any) => part.type === "image_url"),
+                      (msg) =>
+                        Array.isArray(msg?.content) && msg.content.some((part) => part.type === "image_url"),
                     ),
                     isAgent: last?.role !== "user" || imgMsg(last),
                   }
@@ -125,8 +126,8 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                   const last = body.input[body.input.length - 1]
                   return {
                     isVision: body.input.some(
-                      (item: any) =>
-                        Array.isArray(item?.content) && item.content.some((part: any) => part.type === "input_image"),
+                      (item) =>
+                        Array.isArray(item?.content) && item.content.some((part) => part.type === "input_image"),
                     ),
                     isAgent: last?.role !== "user" || imgMsg(last),
                   }
@@ -136,18 +137,18 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                 if (body?.messages) {
                   const last = body.messages[body.messages.length - 1]
                   const hasNonToolCalls =
-                    Array.isArray(last?.content) && last.content.some((part: any) => part?.type !== "tool_result")
+                    Array.isArray(last?.content) && last.content.some((part) => part?.type !== "tool_result")
                   return {
                     isVision: body.messages.some(
-                      (item: any) =>
+                      (item) =>
                         Array.isArray(item?.content) &&
                         item.content.some(
-                          (part: any) =>
+                          (part) =>
                             part?.type === "image" ||
                             // images can be nested inside tool_result content
                             (part?.type === "tool_result" &&
                               Array.isArray(part?.content) &&
-                              part.content.some((nested: any) => nested?.type === "image")),
+                              part.content.some((nested) => nested?.type === "image")),
                         ),
                     ),
                     isAgent: !(last?.role === "user" && hasNonToolCalls) || imgMsg(last),

@@ -338,7 +338,7 @@ const layer = Layer.effect(
                 state: { ...part.state, ...val },
               } satisfies SessionV1.ToolPart)
             }),
-          ask: (req: any) =>
+          ask: (req: Omit<PermissionV1.AskInput, "id" | "sessionID">) =>
             permission
               .ask({
                 ...req,

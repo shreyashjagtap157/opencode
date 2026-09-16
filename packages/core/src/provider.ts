@@ -13,7 +13,7 @@ export const Native = Provider.Native
 export const Api = Provider.Api
 export type Api = Provider.Api
 export type MutableApi<T extends Api = Api> = T extends Api
-  ? Omit<Types.DeepMutable<T>, "settings"> & (undefined extends T["settings"] ? { settings?: any } : { settings: any })
+  ? Omit<Types.DeepMutable<T>, "settings"> & (undefined extends T["settings"] ? { settings?: unknown } : { settings: unknown })
   : never
 
 export const Request = Provider.Request

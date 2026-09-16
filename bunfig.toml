@@ -6,3 +6,4 @@ minimumReleaseAgeExcludes = ["@ai-sdk/amazon-bedrock", "@ai-sdk/anthropic", "@op
 
 [test]
 root = "./do-not-run-tests-from-root"
+coverage = { enabled = true, threshold = 80, reports = ["text", "lcov"] }

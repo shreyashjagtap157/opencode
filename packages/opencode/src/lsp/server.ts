@@ -1441,7 +1441,7 @@ export const LuaLS: Info = {
         return
       }
 
-      const asset = release.assets.find((a: any) => a.name === assetName)
+      const asset = release.assets.find((a) => a.name === assetName)
       if (!asset) {
         return
       }

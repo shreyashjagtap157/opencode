@@ -326,11 +326,11 @@ function normalizeMessages(
     const field = model.capabilities.interleaved.field
     return msgs.map((msg) => {
       if (msg.role === "assistant" && Array.isArray(msg.content)) {
-        const reasoningParts = msg.content.filter((part: any) => part.type === "reasoning")
-        const reasoningText = reasoningParts.map((part: any) => part.text).join("")
+        const reasoningParts = msg.content.filter((part) => part.type === "reasoning")
+        const reasoningText = reasoningParts.map((part) => part.text).join("")
 
         // Filter out reasoning parts from content
-        const filteredContent = msg.content.filter((part: any) => part.type !== "reasoning")
+        const filteredContent = msg.content.filter((part) => part.type !== "reasoning")
 
         // Include reasoning_content | reasoning_details directly on the message for all assistant messages.
         // Always set the field even when empty — some providers (e.g. DeepSeek) may return empty
@@ -705,7 +705,7 @@ function anthropicBindsThinking(apiId: string) {
 // The patched AI SDK adds the thinking-binding-controls beta whenever it is set.
 const ANTHROPIC_BLOCK_BINDING = { prefixMismatchBehavior: "drop_block" }
 
-function anthropicBlockBinding(model: Provider.Model, options: { [x: string]: any }) {
+function anthropicBlockBinding(model: Provider.Model, options: { [x: string]: Record<string, unknown> | undefined }) {
   const sdk = sdkKey(model.api.npm)
   const key = sdk === "bedrock" ? "reasoningConfig" : sdk === "anthropic" ? "thinking" : undefined
   // Consume the OpenCode-only opt-out even on models outside the default scope.
@@ -1405,7 +1405,7 @@ const SLUG_OVERRIDES: Record<string, string> = {
   amazon: "bedrock",
 }
 
-export function providerOptions(model: Provider.Model, options: { [x: string]: any }) {
+export function providerOptions(model: Provider.Model, options: { [x: string]: Record<string, unknown> | undefined }) {
   const usesOpenAIReasoningGate =
     model.api.npm === "@ai-sdk/openai" ||
     model.api.npm === "@ai-sdk/azure" ||
@@ -1628,7 +1628,7 @@ export function schema(model: Provider.Model, schema: JSONSchema7): JSONSchema7 
       ].some((key) => key in node)
     }
 
-    const sanitizeGemini = (obj: any): any => {
+    const sanitizeGemini = (obj: unknown): unknown => {
       if (obj === null || typeof obj !== "object") {
         return obj
       }
@@ -1637,8 +1637,8 @@ export function schema(model: Provider.Model, schema: JSONSchema7): JSONSchema7 
         return obj.map(sanitizeGemini)
       }
 
-      const result: any = {}
-      for (const [key, value] of Object.entries(obj)) {
+      const result: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
         if (key === "enum" && Array.isArray(value)) {
           // Convert all enum values to strings
           result[key] = value.map((v) => String(v))
@@ -1673,7 +1673,7 @@ export function schema(model: Provider.Model, schema: JSONSchema7): JSONSchema7 
 
       // Filter required array to only include fields that exist in properties
       if (result.type === "object" && result.properties && Array.isArray(result.required)) {
-        result.required = result.required.filter((field: any) => field in result.properties)
+        result.required = result.required.filter((field: string) => field in result.properties)
       }
 
       if (result.type === "array" && !hasCombiner(result)) {

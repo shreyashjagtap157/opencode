@@ -5,7 +5,7 @@ export type GlobalEvent = {
   directory?: string
   project?: string
   workspace?: string
-  payload: any
+  payload: Record<string, unknown> & { id?: string; syncEvent?: { id?: string } }
 }
 
 class GlobalBusEmitter extends EventEmitter<{
