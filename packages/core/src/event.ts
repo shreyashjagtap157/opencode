@@ -216,6 +216,14 @@ export const layerWith = (options?: LayerOptions) =>
         return Effect.gen(function* () {
           const durable = definition?.durable
           if (durable) {
+            if (!durable.aggregate) {
+              yield* Effect.die(
+                new InvalidDurableEventError({
+                  type: event.type,
+                  message: `Durable event definition missing aggregate field for type ${event.type}`,
+                }),
+              )
+            }
             const aggregateID = (event.data as Record<string, unknown>)[durable.aggregate]
             if (typeof aggregateID !== "string") {
               yield* Effect.die(

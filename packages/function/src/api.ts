@@ -19,8 +19,6 @@ export class SyncServer extends DurableObject<Env> {
     super(ctx, env)
   }
   async fetch() {
-    console.log("SyncServer subscribe")
-
     const webSocketPair = new WebSocketPair()
     const [client, server] = Object.values(webSocketPair)
 
@@ -43,7 +41,7 @@ export class SyncServer extends DurableObject<Env> {
     ws.close(code, "Durable Object is closing WebSocket")
   }
 
-  async publish(key: string, content: any) {
+  async publish(key: string, content: unknown) {
     const sessionID = await this.getSessionID()
     if (
       !key.startsWith(`session/info/${sessionID}`) &&
@@ -60,7 +58,6 @@ export class SyncServer extends DurableObject<Env> {
     })
     await this.ctx.storage.put(key, content)
     const clients = this.ctx.getWebSockets()
-    console.log("SyncServer publish", key, "to", clients.length, "subscribers")
     for (const client of clients) {
       client.send(JSON.stringify({ key, content }))
     }
@@ -78,7 +75,7 @@ export class SyncServer extends DurableObject<Env> {
   }
 
   public async getData() {
-    const data = (await this.ctx.storage.list()) as Map<string, any>
+    const data = (await this.ctx.storage.list()) as Map<string, unknown>
     return Array.from(data.entries())
       .filter(([key, _]) => key.startsWith("session/"))
       .map(([key, content]) => ({ key, content }))
@@ -153,7 +150,7 @@ export default new Hono<{ Bindings: Env }>()
       sessionID: string
       secret: string
       key: string
-      content: any
+       content: unknown,
     }>()
     const name = SyncServer.shortName(body.sessionID)
     const id = c.env.SYNC_SERVER.idFromName(name)
@@ -168,20 +165,18 @@ export default new Hono<{ Bindings: Env }>()
       return c.text("Error: Upgrade header is required", { status: 426 })
     }
     const id = c.req.query("id")
-    console.log("share_poll", id)
     if (!id) return c.text("Error: Share ID is required", { status: 400 })
     const stub = c.env.SYNC_SERVER.get(c.env.SYNC_SERVER.idFromName(id))
     return stub.fetch(c.req.raw)
   })
   .get("/share_data", async (c) => {
     const id = c.req.query("id")
-    console.log("share_data", id)
     if (!id) return c.text("Error: Share ID is required", { status: 400 })
     const stub = c.env.SYNC_SERVER.get(c.env.SYNC_SERVER.idFromName(id))
     const data = await stub.getData()
 
-    let info
-    const messages: Record<string, any> = {}
+    let info: unknown
+    const messages: Record<string, unknown> = {}
     data.forEach((d) => {
       const [root, type] = d.key.split("/")
       if (root !== "session") return
@@ -189,14 +184,22 @@ export default new Hono<{ Bindings: Env }>()
         info = d.content
         return
       }
-      if (type === "message") {
-        messages[d.content.id] = {
-          parts: [],
-          ...d.content,
+      if (type === "message" && typeof d.content === "object" && d.content !== null) {
+        const content = d.content as Record<string, unknown>
+        const messageID = typeof content.id === "string" ? content.id : undefined
+        if (messageID) {
+          messages[messageID] = {
+            parts: [],
+            ...content,
+          }
         }
       }
-      if (type === "part") {
-        messages[d.content.messageID].parts.push(d.content)
+      if (type === "part" && typeof d.content === "object" && d.content !== null) {
+        const content = d.content as Record<string, unknown>
+        const messageID = typeof content.messageID === "string" ? content.messageID : undefined
+        if (messageID && messages[messageID]) {
+          ;(messages[messageID] as { parts: unknown[] }).parts.push(content)
+        }
       }
     })
 
@@ -215,7 +218,6 @@ export default new Hono<{ Bindings: Env }>()
         }
       }
     }
-    console.log(JSON.stringify(body, null, 2))
     const challenge = body.challenge
     if (challenge) return c.json({ challenge })
 
@@ -347,11 +349,8 @@ export default new Hono<{ Bindings: Env }>()
       })
 
       return c.json({ token: installationAuth.token })
-    } catch (e: any) {
-      let error = e
-      if (e instanceof Error) {
-        error = e.message
-      }
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e.message : String(e)
 
       return c.json({ error }, { status: 401 })
     }
