@@ -49,6 +49,27 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
+      - name: Provision ripgrep for Windows tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "15.1.0"
+          $archiveName = "ripgrep-$version-x86_64-pc-windows-msvc.zip"
+          $archive = Join-Path $env:RUNNER_TEMP $archiveName
+          $installDir = Join-Path $env:RUNNER_TEMP "ripgrep-$version"
+          $url = "https://github.com/BurntSushi/ripgrep/releases/download/$version/$archiveName"
+          $ProgressPreference = "SilentlyContinue"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $installDir -Force
+          $bin = Join-Path $installDir "ripgrep-$version-x86_64-pc-windows-msvc"
+          $rg = Join-Path $bin "rg.exe"
+          if (-not (Test-Path -LiteralPath $rg -PathType Leaf)) {
+            throw "Expected ripgrep executable was not found at $rg"
+          }
+          & $rg --version
+          if ($LASTEXITCODE -ne 0) { throw "ripgrep version check failed" }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $bin
+
       - name: Configure git identity
         run: |
           git config --global user.email "bot@opencode.ai"
@@ -109,6 +130,27 @@ jobs:
 
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
+
+      - name: Provision ripgrep for Windows tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "15.1.0"
+          $archiveName = "ripgrep-$version-x86_64-pc-windows-msvc.zip"
+          $archive = Join-Path $env:RUNNER_TEMP $archiveName
+          $installDir = Join-Path $env:RUNNER_TEMP "ripgrep-$version"
+          $url = "https://github.com/BurntSushi/ripgrep/releases/download/$version/$archiveName"
+          $ProgressPreference = "SilentlyContinue"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $installDir -Force
+          $bin = Join-Path $installDir "ripgrep-$version-x86_64-pc-windows-msvc"
+          $rg = Join-Path $bin "rg.exe"
+          if (-not (Test-Path -LiteralPath $rg -PathType Leaf)) {
+            throw "Expected ripgrep executable was not found at $rg"
+          }
+          & $rg --version
+          if ($LASTEXITCODE -ne 0) { throw "ripgrep version check failed" }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $bin
 
       - name: Read Playwright version
         id: playwright-version
