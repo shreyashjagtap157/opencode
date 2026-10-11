@@ -7,6 +7,8 @@ on:
 
 jobs:
   close:
+    # This maintenance script mutates issues in anomalyco/opencode and cannot use a fork-scoped token for that repository.
+    if: github.repository == 'anomalyco/opencode'
     runs-on: ubuntu-latest
     permissions:
       contents: read
