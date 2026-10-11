@@ -17,6 +17,8 @@ on:
 
 jobs:
   close:
+    # This cleanup script targets upstream anomalyco/opencode; a fork-scoped GITHUB_TOKEN cannot close upstream PRs.
+    if: github.repository == 'anomalyco/opencode'
     runs-on: ubuntu-latest
     timeout-minutes: 240
     permissions:

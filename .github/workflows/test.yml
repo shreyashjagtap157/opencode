@@ -28,9 +28,9 @@ jobs:
       matrix:
         settings:
           - name: linux
-            host: blacksmith-4vcpu-ubuntu-2404
+            host: ubuntu-latest
           - name: windows
-            host: blacksmith-4vcpu-windows-2025
+            host: windows-latest
     runs-on: ${{ matrix.settings.host }}
     defaults:
       run:
@@ -48,6 +48,29 @@ jobs:
 
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
+        with:
+          install-flags: ${{ runner.os == 'Windows' && '--backend copyfile' || '' }}
+
+      - name: Provision ripgrep for Windows tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "15.1.0"
+          $archiveName = "ripgrep-$version-x86_64-pc-windows-msvc.zip"
+          $archive = Join-Path $env:RUNNER_TEMP $archiveName
+          $installDir = Join-Path $env:RUNNER_TEMP "ripgrep-$version"
+          $url = "https://github.com/BurntSushi/ripgrep/releases/download/$version/$archiveName"
+          $ProgressPreference = "SilentlyContinue"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $installDir -Force
+          $bin = Join-Path $installDir "ripgrep-$version-x86_64-pc-windows-msvc"
+          $rg = Join-Path $bin "rg.exe"
+          if (-not (Test-Path -LiteralPath $rg -PathType Leaf)) {
+            throw "Expected ripgrep executable was not found at $rg"
+          }
+          & $rg --version
+          if ($LASTEXITCODE -ne 0) { throw "ripgrep version check failed" }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $bin
 
       - name: Configure git identity
         run: |
@@ -64,7 +87,7 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Run unit tests
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: GITHUB_ACTIONS=false bun turbo test
         env:
           OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
@@ -86,9 +109,9 @@ jobs:
       matrix:
         settings:
           - name: linux
-            host: blacksmith-4vcpu-ubuntu-2404
+            host: ubuntu-latest
           - name: windows
-            host: blacksmith-4vcpu-windows-2025
+            host: windows-latest
     runs-on: ${{ matrix.settings.host }}
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
@@ -109,6 +132,29 @@ jobs:
 
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
+        with:
+          install-flags: ${{ runner.os == 'Windows' && '--backend copyfile' || '' }}
+
+      - name: Provision ripgrep for Windows tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "15.1.0"
+          $archiveName = "ripgrep-$version-x86_64-pc-windows-msvc.zip"
+          $archive = Join-Path $env:RUNNER_TEMP $archiveName
+          $installDir = Join-Path $env:RUNNER_TEMP "ripgrep-$version"
+          $url = "https://github.com/BurntSushi/ripgrep/releases/download/$version/$archiveName"
+          $ProgressPreference = "SilentlyContinue"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $installDir -Force
+          $bin = Join-Path $installDir "ripgrep-$version-x86_64-pc-windows-msvc"
+          $rg = Join-Path $bin "rg.exe"
+          if (-not (Test-Path -LiteralPath $rg -PathType Leaf)) {
+            throw "Expected ripgrep executable was not found at $rg"
+          }
+          & $rg --version
+          if ($LASTEXITCODE -ne 0) { throw "ripgrep version check failed" }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $bin
 
       - name: Read Playwright version
         id: playwright-version
@@ -137,7 +183,7 @@ jobs:
         run: bun --cwd packages/app test:e2e:local
         env:
           CI: true
-        timeout-minutes: 30
+        timeout-minutes: 45
 
       - name: Upload Playwright artifacts
         if: always()
